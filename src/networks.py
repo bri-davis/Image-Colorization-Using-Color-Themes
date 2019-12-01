@@ -77,6 +77,7 @@ class Generator(object):
                     activation=tf.nn.leaky_relu,
                     seed=seed
                 )
+                print(index)
 
                 # save contracting path layers to be used for skip connections
                 layers.append(output)
@@ -121,5 +122,6 @@ class Generator(object):
             )
 
             self.var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, self.name)
+            print(self.var_list)
 
             return output
