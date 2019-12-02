@@ -85,9 +85,9 @@ class Generator(object):
                     keep_prob = 1.0 - kernel[2] if self.training else 1.0
                     output = tf.nn.dropout(output, keep_prob=keep_prob, name='dropout_' + name, seed=seed)
 
-            scheme_components = tf.keras.layers.Dense(units=512 * 4, activation='relu', use_bias=True)(input_color_scheme)
-            scheme_components = tf.reshape(scheme_components, (-1, 2, 2, 512))
-            output = output + scheme_components
+            scheme_component = tf.keras.layers.Dense(units=512 * 4, activation='relu', use_bias=True)(input_color_scheme) # input_color_scheme is a one-hot encoded variable denoting the target color scheme
+            scheme_component = tf.reshape(scheme_component, (-1, 2, 2, 512)) # reshape so that the output of the FC layer can be added to the outputted feature maps of the encoder
+            output = output + scheme_component # output = feature maps from the encoder block
             for index, kernel in enumerate(self.decoder_kernels):
 
                 name = 'deconv' + str(index)

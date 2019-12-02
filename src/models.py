@@ -130,9 +130,6 @@ class BaseModel:
                 img_gray = np.squeeze(img_gray)
                 img_gray = np.tile(np.expand_dims(img_gray, axis=0), (1, 1, 1, 1))
 
-                # if img_gray.shape[-1] == 3:
-                #     img_gray = np.mean(img_gray, axis=-1)
-
                 name = os.path.basename(img_gray_path[:-3]) + '_' + str(i) + '.jpg'
                 path = os.path.join(outputs_path, name)
 
@@ -143,6 +140,27 @@ class BaseModel:
                 outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
                 outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
                 imsave(outputs[0], path)
+
+    def test2(self):
+
+        val_generator = self.dataset_val.generator(self.options.batch_size)
+        outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
+
+        k = l = 0
+        for input_rgb in val_generator:
+            for i in range(2):
+                color_scheme = np.expand_dims(np.expand_dims(np.array(i), axis=-1), axis=-1)
+                feed_dic = {self.input_rgb: input_rgb, self.color_scheme: color_scheme}
+
+                outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
+                outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
+                for j in range(len(outputs)):
+                    imsave(outputs[j], os.path.join(outputs_path, '{}_{}.jpg'.format(k + j, i)))
+                    if i == 1:
+                        l += 1
+            k += l
+            l = 0
+
 
     def sample(self, show=True):
         input_rgb = next(self.sample_generator)
@@ -226,12 +244,12 @@ class BaseModel:
         self.gen_loss_gan = tf.reduce_mean(gen_ce)
         self.gen_loss_l1 = tf.reduce_mean(tf.abs(self.input_color - gen)) * self.options.l1_weight
 
-        color_loss_constants = tf.constant([[65.04, -25.06, -29.04], [55.46, 60.3, 46.52]])
-        one_hot_transposed = tf.transpose(self.color_scheme_onehot, (0, 2, 1))
-        color_y = tf.reduce_sum(color_loss_constants * one_hot_transposed, axis=1)
+        color_sceheme_colors = tf.constant([[65.04, -25.06, -29.04], [55.46, 60.3, 46.52]])  # first term represents a cool blue color, second term represents a warm red color
+        one_hot_transposed = tf.transpose(self.color_scheme_onehot, (0, 2, 1)) # transpose to match up dimensions properly
+        color_y = tf.reduce_sum(color_sceheme_colors * one_hot_transposed, axis=1) # this operation assures that the correct LAB color value is used for the loss term given the input of the color scheme
         color_y = (tf.expand_dims(tf.expand_dims(color_y, 1), 1))
-        self.color_scheme_loss = tf.reduce_mean(tf.abs(color_y - gen)) * self.options.color_weight
-        self.gen_loss = self.gen_loss_gan + self.gen_loss_l1 + self.color_scheme_loss
+        self.color_scheme_loss = tf.reduce_mean(tf.abs(color_y - gen)) * self.options.color_weight # gen = output of the generator (array of h * w * 3)
+        self.gen_loss = self.gen_loss_gan + self.gen_loss_l1 + self.color_scheme_loss # final objective function
 
         self.sampler = tf.identity(gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed, reuse_variables=True), name='output')
         self.accuracy = pixelwise_accuracy(self.input_color, gen, self.options.color_space, self.options.acc_thresh)

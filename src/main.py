@@ -58,6 +58,9 @@ def main(options):
         elif options.mode == 1:
             model.test()
 
+        elif options.mode == 2:
+            model.test2()
+
         else:
             model.turing_test()
 
