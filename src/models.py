@@ -124,16 +124,24 @@ class BaseModel:
         dataset = TestDataset(self.options.test_input or (self.options.checkpoints_path + '/test'))
         outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
 
-        for index in range(len(dataset)):
-            for i in range (2):
+        for index in range(10):
+            for i in range(2):
                 img_gray_path, img_gray = dataset[index]
-                name = os.path.basename(img_gray_path) + '_' + str(i)
+                img_gray = np.squeeze(img_gray)
+                img_gray = np.tile(np.expand_dims(img_gray, axis=0), (1, 1, 1, 1))
+
+                # if img_gray.shape[-1] == 3:
+                #     img_gray = np.mean(img_gray, axis=-1)
+
+                name = os.path.basename(img_gray_path[:-3]) + '_' + str(i) + '.jpg'
                 path = os.path.join(outputs_path, name)
 
-                feed_dic = {self.input_gray: img_gray[None, :, :, None], self.color_scheme: i}
+                color_scheme_input = np.expand_dims(np.expand_dims(np.array(i), axis=-1), axis=-1)
+                # feed_dic = {self.input_gray: img_gray[None, :, :, None], self.color_scheme: color_scheme_input}
+                feed_dic = {self.input_rgb: img_gray, self.color_scheme: color_scheme_input}
+
                 outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
                 outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
-                print(path)
                 imsave(outputs[0], path)
 
     def sample(self, show=True):
@@ -196,12 +204,12 @@ class BaseModel:
         self.input_color = preprocess(self.input_rgb, colorspace_in=COLORSPACE_RGB, colorspace_out=self.options.color_space)
 
         # test mode: model input is a graycale placeholder
-        if self.options.mode == 1:
-            self.input_gray = tf.placeholder(tf.float32, shape=(None, None, None, 1), name='input_gray')
+        # if self.options.mode == 1:
+        #     self.input_gray = tf.placeholder(tf.float32, shape=(None, None, None, 1), name='input_gray')
 
         # train/turing-test we extract grayscale image from color image
-        else:
-            self.input_gray = tf.image.rgb_to_grayscale(self.input_rgb)
+        # else:
+        self.input_gray = tf.image.rgb_to_grayscale(self.input_rgb)
 
         gen = gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed)
         dis_real = dis_factory.create(tf.concat([self.input_gray, self.input_color], 3), kernel, seed)

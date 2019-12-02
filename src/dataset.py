@@ -143,9 +143,20 @@ class TestDataset(BaseDataset):
         super(TestDataset, self).__init__('TEST', path, training=False, augment=False)
 
     def __getitem__(self, index):
-        path = self.data[index]
-        img = imread(path)
-        return path, img
+        if isinstance(index, slice):
+            start = index.start
+            stop = index.stop
+            paths = []
+            imgs = []
+            for i in range(start, stop):
+                path = self.data[i]
+                paths.append(path)
+                imgs.append(imread(path))
+            return paths, imgs
+        else:
+            path = self.data[index]
+            img = imread(path)
+            return path, img
 
     def load(self):
 
@@ -153,7 +164,6 @@ class TestDataset(BaseDataset):
             data = [self.path]
 
         elif os.path.isdir(self.path):
-            data = list(glob.glob(self.path + '/*.jpg')) + list(glob.glob(self.path + '/*.png'))
-
+            data = list(glob.glob(self.path + '/**/*.jpg')) + list(glob.glob(self.path + '/**/*.png'))
 
         return data
