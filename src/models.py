@@ -50,7 +50,7 @@ class BaseModel:
                 self.iteration = self.iteration + 1
                 self.sess.run([self.dis_train], feed_dict=feed_dic)
                 self.sess.run([self.gen_train, self.accuracy], feed_dict=feed_dic)
-                self.sess.run([self.gen_train, self.accuracy], feed_dict=feed_dic)
+                color_y, _, _= self.sess.run([self.color_y, self.gen_train, self.accuracy], feed_dict=feed_dic)
 
                 lossD, lossD_fake, lossD_real, lossG, lossG_l1, lossG_gan, lossG_color, acc, step = self.eval_outputs(feed_dic=feed_dic)
 
@@ -120,11 +120,13 @@ class BaseModel:
         print('\n')
 
     def test(self):
+
+        # We found that this test script does not work due to issues with the batch size
         print('\nTesting...')
         dataset = TestDataset(self.options.test_input or (self.options.checkpoints_path + '/test'))
         outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
 
-        for index in range(10):
+        for index in range(len(dataset)):
             for i in range(2):
                 img_gray_path, img_gray = dataset[index]
                 img_gray = np.squeeze(img_gray)
@@ -134,7 +136,6 @@ class BaseModel:
                 path = os.path.join(outputs_path, name)
 
                 color_scheme_input = np.expand_dims(np.expand_dims(np.array(i), axis=-1), axis=-1)
-                # feed_dic = {self.input_gray: img_gray[None, :, :, None], self.color_scheme: color_scheme_input}
                 feed_dic = {self.input_rgb: img_gray, self.color_scheme: color_scheme_input}
 
                 outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
@@ -143,16 +144,18 @@ class BaseModel:
 
     def test2(self):
 
+        # This code follows the same logic from 'validate' above to test on the images from the validation set
+        # For future will need to divide the validation set into two subsets: validation and test
         val_generator = self.dataset_val.generator(self.options.batch_size)
         outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
 
         k = l = 0
         for input_rgb in val_generator:
-            for i in range(2):
-                color_scheme = np.expand_dims(np.expand_dims(np.array(i), axis=-1), axis=-1)
+            for i in range(2): # infer for each color scheme
+                color_scheme = np.tile(np.expand_dims(np.array(i), axis=-1), (len(input_rgb), 1))
                 feed_dic = {self.input_rgb: input_rgb, self.color_scheme: color_scheme}
 
-                outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
+                outputs = self.sess.run([self.sampler], feed_dict=feed_dic)
                 outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
                 for j in range(len(outputs)):
                     imsave(outputs[j], os.path.join(outputs_path, '{}_{}.jpg'.format(k + j, i)))
@@ -230,6 +233,7 @@ class BaseModel:
         self.input_gray = tf.image.rgb_to_grayscale(self.input_rgb)
 
         gen = gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed)
+
         dis_real = dis_factory.create(tf.concat([self.input_gray, self.input_color], 3), kernel, seed)
         dis_fake = dis_factory.create(tf.concat([self.input_gray, gen], 3), kernel, seed, reuse_variables=True)
 
@@ -247,8 +251,7 @@ class BaseModel:
         color_sceheme_colors = tf.constant([[65.04, -25.06, -29.04], [55.46, 60.3, 46.52]])  # first term represents a cool blue color, second term represents a warm red color
         one_hot_transposed = tf.transpose(self.color_scheme_onehot, (0, 2, 1)) # transpose to match up dimensions properly
         color_y = tf.reduce_sum(color_sceheme_colors * one_hot_transposed, axis=1) # this operation assures that the correct LAB color value is used for the loss term given the input of the color scheme
-        color_y = (tf.expand_dims(tf.expand_dims(color_y, 1), 1))
-        self.color_scheme_loss = tf.reduce_mean(tf.abs(color_y - gen)) * self.options.color_weight # gen = output of the generator (array of h * w * 3)
+        self.color_scheme_loss = tf.reduce_mean(tf.abs((tf.expand_dims(tf.expand_dims(color_y, 1), 1)) - gen)) * self.options.color_weight # gen = output of the generator (array of h * w * 3)
         self.gen_loss = self.gen_loss_gan + self.gen_loss_l1 + self.color_scheme_loss # final objective function
 
         self.sampler = tf.identity(gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed, reuse_variables=True), name='output')
