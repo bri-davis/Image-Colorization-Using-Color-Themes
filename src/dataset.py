@@ -76,7 +76,8 @@ class BaseDataset():
     def data(self):
         if len(self._data) == 0:
             self._data = self.load()
-            np.random.shuffle(self._data)
+            if self.training:
+                np.random.shuffle(self._data)
 
         return self._data
 
