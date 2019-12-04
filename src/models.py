@@ -50,7 +50,7 @@ class BaseModel:
                 self.iteration = self.iteration + 1
                 self.sess.run([self.dis_train], feed_dict=feed_dic)
                 self.sess.run([self.gen_train, self.accuracy], feed_dict=feed_dic)
-                color_y, _, _= self.sess.run([self.color_y, self.gen_train, self.accuracy], feed_dict=feed_dic)
+                self.sess.run([self.gen_train, self.accuracy], feed_dict=feed_dic)
 
                 lossD, lossD_fake, lossD_real, lossG, lossG_l1, lossG_gan, lossG_color, acc, step = self.eval_outputs(feed_dic=feed_dic)
 
@@ -150,12 +150,20 @@ class BaseModel:
         outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
 
         k = l = 0
+        x = self.sess.run([v for v in tf.trainable_variables() if v.name == 'gen/dense/kernel:0'])[0]
+        b = self.sess.run([v for v in tf.trainable_variables() if v.name == 'gen/dense/bias:0'])[0]
+        y = np.dot(np.array([[0, 1]]), x) + b
+        y[y <= 0] = 200
+        y[y != 200] = 0
+        y[y == 200] = 1
+        print(np.mean(y))
         for input_rgb in val_generator:
             for i in range(2): # infer for each color scheme
                 color_scheme = np.tile(np.expand_dims(np.array(i), axis=-1), (len(input_rgb), 1))
                 feed_dic = {self.input_rgb: input_rgb, self.color_scheme: color_scheme}
 
-                outputs = self.sess.run([self.sampler], feed_dict=feed_dic)
+                outputs, sc = self.sess.run([self.sampler, self.sc], feed_dict=feed_dic)
+                # print(sc)
                 outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
                 for j in range(len(outputs)):
                     imsave(outputs[j], os.path.join(outputs_path, '{}_{}.jpg'.format(k + j, i)))
@@ -232,7 +240,7 @@ class BaseModel:
         # else:
         self.input_gray = tf.image.rgb_to_grayscale(self.input_rgb)
 
-        gen = gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed)
+        gen, self.sc = gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed)
 
         dis_real = dis_factory.create(tf.concat([self.input_gray, self.input_color], 3), kernel, seed)
         dis_fake = dis_factory.create(tf.concat([self.input_gray, gen], 3), kernel, seed, reuse_variables=True)
@@ -251,10 +259,10 @@ class BaseModel:
         color_sceheme_colors = tf.constant([[65.04, -25.06, -29.04], [55.46, 60.3, 46.52]])  # first term represents a cool blue color, second term represents a warm red color
         one_hot_transposed = tf.transpose(self.color_scheme_onehot, (0, 2, 1)) # transpose to match up dimensions properly
         color_y = tf.reduce_sum(color_sceheme_colors * one_hot_transposed, axis=1) # this operation assures that the correct LAB color value is used for the loss term given the input of the color scheme
-        self.color_scheme_loss = tf.reduce_mean(tf.abs((tf.expand_dims(tf.expand_dims(color_y, 1), 1)) - gen)) * self.options.color_weight # gen = output of the generator (array of h * w * 3)
+        self.color_scheme_loss = tf.reduce_mean(tf.abs(tf.expand_dims(tf.expand_dims(color_y, 1), 1)) - gen) * self.options.color_weight # gen = output of the generator (array of h * w * 3)
         self.gen_loss = self.gen_loss_gan + self.gen_loss_l1 + self.color_scheme_loss # final objective function
 
-        self.sampler = tf.identity(gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed, reuse_variables=True), name='output')
+        self.sampler = tf.identity(gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed, reuse_variables=True)[0], name='output')
         self.accuracy = pixelwise_accuracy(self.input_color, gen, self.options.color_space, self.options.acc_thresh)
         self.learning_rate = tf.constant(self.options.lr)
 

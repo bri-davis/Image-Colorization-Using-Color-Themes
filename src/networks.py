@@ -85,7 +85,8 @@ class Generator(object):
                     keep_prob = 1.0 - kernel[2] if self.training else 1.0
                     output = tf.nn.dropout(output, keep_prob=keep_prob, name='dropout_' + name, seed=seed)
 
-            scheme_component = tf.keras.layers.Dense(units=512 * 4, activation='relu', use_bias=True)(input_color_scheme) # input_color_scheme is a one-hot encoded variable denoting the target color scheme
+            scheme_component = tf.keras.layers.Dense(units=512 * 4, activation='linear', use_bias=True)(input_color_scheme) # input_color_scheme is a one-hot encoded variable denoting the target color scheme
+            sc = tf.identity(scheme_component)
             scheme_component = tf.reshape(scheme_component, (-1, 2, 2, 512)) # reshape so that the output of the FC layer can be added to the outputted feature maps of the encoder
             output = output + scheme_component # output = feature maps from the encoder block
             for index, kernel in enumerate(self.decoder_kernels):
@@ -100,6 +101,10 @@ class Generator(object):
                     activation=tf.nn.relu,
                     seed=seed
                 )
+                l, w, k = output.shape[1], output.shape[2], output.shape[3]
+                scheme_component = tf.keras.layers.Dense(units=k * l * w, activation='linear', use_bias=True)(input_color_scheme)
+                scheme_component = tf.reshape(scheme_component, (-1, l, w, k))
+                output = output + scheme_component
 
                 if kernel[2] > 0:
                     keep_prob = 1.0 - kernel[2] if self.training else 1.0
@@ -122,4 +127,4 @@ class Generator(object):
 
             self.var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, self.name)
 
-            return output
+            return output, sc
