@@ -221,6 +221,7 @@ class BaseModel:
         self.input_gray = tf.image.rgb_to_grayscale(self.input_rgb)
 
         gen = gen_factory.create(self.input_gray, kernel, seed)
+        # gen = tf.concat([self.input_color[:, :, :, :1], gen[:, :, :, 1:]], axis=-1)
 
         dis_real = dis_factory.create(tf.concat([self.input_gray, self.input_color], 3), kernel, seed)
         dis_fake = dis_factory.create(tf.concat([self.input_gray, gen], 3), kernel, seed, reuse_variables=True)
