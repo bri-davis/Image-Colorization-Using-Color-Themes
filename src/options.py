@@ -28,7 +28,7 @@ class ModelOptions:
         parser.add_argument('--lr', type=float, default=3e-4, metavar='LR', help='learning rate (default: 3e-4)')
         parser.add_argument('--lr-decay', type=str2bool, default=True, help='True for learning-rate decay (default: True)')
         parser.add_argument('--lr-decay-rate', type=float, default=0.1, help='learning rate exponentially decay rate (default: 0.1)')
-        parser.add_argument('--lr-decay-steps', type=float, default=5e5, help='learning rate exponentially decay steps (default: 1e5)')
+        parser.add_argument('--lr-decay-steps', type=float, default=1e4, help='learning rate exponentially decay steps (default: 1e5)')
         parser.add_argument('--beta1', type=float, default=0, help='momentum term of adam optimizer (default: 0)')
         parser.add_argument("--l1-weight", type=float, default=100.0, help="weight on L1 term for generator gradient (default: 100.0)")
         parser.add_argument("--color-weight", type=float, default=10.0, help="weight on the color loss term for generator gradient")
