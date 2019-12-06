@@ -221,10 +221,10 @@ class BaseModel:
         self.input_gray = tf.image.rgb_to_grayscale(self.input_rgb)
 
         gen = gen_factory.create(self.input_gray, kernel, seed)
-        # gen = tf.concat([self.input_color[:, :, :, :1], gen[:, :, :, 1:]], axis=-1)
+        gen = tf.concat([self.input_color[:, :, :, :1], gen[:, :, :, 1:]], axis=-1)
 
-        dis_real = dis_factory.create(tf.concat([self.input_gray, self.input_color], 3), kernel, seed)
-        dis_fake = dis_factory.create(tf.concat([self.input_gray, gen], 3), kernel, seed, reuse_variables=True)
+        dis_real = dis_factory.create(self.input_color, kernel, seed)
+        dis_fake = dis_factory.create(gen, kernel, seed, reuse_variables=True)
 
         gen_ce = tf.nn.sigmoid_cross_entropy_with_logits(logits=dis_fake, labels=tf.ones_like(dis_fake))
         dis_real_ce = tf.nn.sigmoid_cross_entropy_with_logits(logits=dis_real, labels=tf.ones_like(dis_real) * smoothing)
@@ -242,6 +242,7 @@ class BaseModel:
         self.gen_loss = self.gen_loss_gan + self.gen_loss_l1 + self.color_scheme_loss # final objective function
 
         self.sampler = tf.identity(gen_factory.create(self.input_gray, kernel, seed, reuse_variables=True), name='output')
+        self.sampler = tf.concat([self.input_color[:, :, :, :1], gen[:, :, :, 1:]], axis=-1)
         self.accuracy = pixelwise_accuracy(self.input_color, gen, self.options.color_space, self.options.acc_thresh)
         self.learning_rate = tf.constant(self.options.lr)
 

@@ -12,6 +12,7 @@ class Discriminator(object):
 
     def create(self, inputs, kernel_size=None, seed=None, reuse_variables=None):
         output = inputs
+        print(reuse_variables)
         with tf.variable_scope(self.name, reuse=reuse_variables):
             for index, kernel in enumerate(self.kernels):
 
