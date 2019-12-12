@@ -155,6 +155,8 @@ class BaseModel:
             for j in range(len(outputs)):
                 imsave(outputs[j], os.path.join(outputs_path, '{}.jpg'.format(k)))
                 k += 1
+                if k == num:
+                    break
 
 
     def sample(self, show=True):

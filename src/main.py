@@ -64,6 +64,9 @@ def main(options):
         elif options.mode == 3:
             model.validate()
 
+        elif options.mode == 4:
+            model.infer_and_save(500)
+
         else:
             model.turing_test()
 
