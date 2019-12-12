@@ -56,10 +56,13 @@ def main(options):
             model.train()
         
         elif options.mode == 1:
-            model.test()
+            model.infer_and_save()
 
         elif options.mode == 2:
-            model.test2()
+            model.evaluate_color()
+
+        elif options.mode == 3:
+            model.validate()
 
         else:
             model.turing_test()

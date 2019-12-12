@@ -20,19 +20,19 @@ class ModelOptions:
         parser.add_argument('--name', type=str, default='CGAN', help='arbitrary model name (default: CGAN)')
         parser.add_argument('--mode', default=0, help='run mode [0: train, 1: test, 2: turing-test] (default: 0)')
         parser.add_argument('--dataset', type=str, default='cifar10', help='the name of dataset [places365, cifar10] (default: places365)')
-        parser.add_argument('--dataset-path', type=str, default='./dataset', help='dataset path (default: ./dataset)')
+        parser.add_argument('--dataset-path', type=str, default='./dataset/cifar10', help='dataset path (default: ./dataset)')
         parser.add_argument('--checkpoints-path', type=str, default='./checkpoints', help='models are saved here (default: ./checkpoints)')
         parser.add_argument('--batch-size', type=int, default=128, metavar='N', help='input batch size for training (default: 16)')
         parser.add_argument('--color-space', type=str, default='lab', help='model color space [lab, rgb] (default: lab)')
         parser.add_argument('--epochs', type=int, default=30, metavar='N', help='number of epochs to train (default: 30)')
         parser.add_argument('--lr', type=float, default=3e-4, metavar='LR', help='learning rate (default: 3e-4)')
-        parser.add_argument('--lr-decay', type=str2bool, default=True, help='True for learning-rate decay (default: True)')
+        parser.add_argument('--lr-decay', type=str2bool, default=False, help='True for learning-rate decay (default: True)')
         parser.add_argument('--lr-decay-rate', type=float, default=0.1, help='learning rate exponentially decay rate (default: 0.1)')
         parser.add_argument('--lr-decay-steps', type=float, default=1e4, help='learning rate exponentially decay steps (default: 1e5)')
         parser.add_argument('--beta1', type=float, default=0, help='momentum term of adam optimizer (default: 0)')
         parser.add_argument("--l1-weight", type=float, default=100.0, help="weight on L1 term for generator gradient (default: 100.0)")
         parser.add_argument("--color-weight", type=float, default=10.0, help="weight on the color loss term for generator gradient")
-        parser.add_argument("--scheme-color", type=list, default=[65.04, -25.06, -29.04], help='color scheme for color loss function')
+        parser.add_argument("--scheme-color", type=list, default=[55.46, 60.3, 46.52], help='color scheme for color loss function')
         parser.add_argument('--augment', type=str2bool, default=True, help='True for augmentation (default: True)')
         parser.add_argument('--label-smoothing', type=str2bool, default=False, help='True for one-sided label smoothing (default: False)')
         parser.add_argument('--acc-thresh', type=float, default=2.0, help="accuracy threshold (default: 2.0)")
@@ -52,8 +52,8 @@ class ModelOptions:
         
         parser.add_argument('--test-input', type=str, default='', help='path to the grayscale images directory or a grayscale file')
         parser.add_argument('--test-output', type=str, default='', help='model test output directory')
-        parser.add_argument('--turing-test-size', type=int, default=100, metavar='N', help='number of Turing tests (default: 100)')
-        parser.add_argument('--turing-test-delay', type=int, default=0, metavar='N', help='number of seconds to wait when doing Turing test, 0 for unlimited (default: 0)')
+        parser.add_argument('--turing-test-size', type=int, default=500, metavar='N', help='number of Turing tests (default: 100)')
+        parser.add_argument('--turing-test-delay', type=int, default=2, metavar='N', help='number of seconds to wait when doing Turing test, 0 for unlimited (default: 0)')
 
         self._parser = parser
 

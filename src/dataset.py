@@ -11,10 +11,11 @@ PLACES365_DATASET = 'places365'
 
 
 class BaseDataset():
-    def __init__(self, name, path, training=True, augment=True):
+    def __init__(self, name, path, training=True, augment=True, turing=False):
         self.name = name
         self.augment = augment and training
         self.training = training
+        self.turing = turing
         self.path = path
         self._data = []
 
@@ -76,7 +77,7 @@ class BaseDataset():
     def data(self):
         if len(self._data) == 0:
             self._data = self.load()
-            if self.training:
+            if self.training or self.turing:
                 np.random.shuffle(self._data)
 
         return self._data
@@ -87,8 +88,8 @@ class BaseDataset():
 
 
 class Cifar10Dataset(BaseDataset):
-    def __init__(self, path, training=True, augment=True):
-        super(Cifar10Dataset, self).__init__(CIFAR10_DATASET, path, training, augment)
+    def __init__(self, path, training=True, augment=True, turing=False):
+        super(Cifar10Dataset, self).__init__(CIFAR10_DATASET, path, training, augment, turing)
 
     def load(self):
         data = []
@@ -116,8 +117,8 @@ class Cifar10Dataset(BaseDataset):
 
 
 class Places365Dataset(BaseDataset):
-    def __init__(self, path, training=True, augment=True):
-        super(Places365Dataset, self).__init__(PLACES365_DATASET, path, training, augment)
+    def __init__(self, path, training=True, augment=True, turing=False):
+        super(Places365Dataset, self).__init__(PLACES365_DATASET, path, training, augment, turing)
 
     def load(self):
         if self.training:

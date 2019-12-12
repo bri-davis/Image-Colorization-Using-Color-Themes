@@ -117,33 +117,32 @@ class BaseModel:
 
         print('\n')
 
-    def test(self):
 
-        # We found that this test script does not work due to issues with the batch size
-        print('\nTesting...')
-        dataset = TestDataset(self.options.test_input or (self.options.checkpoints_path + '/test'))
-        outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
+    def evaluate_color(self):
 
-        for index in range(len(dataset)):
-            for i in range(2):
-                img_gray_path, img_gray = dataset[index]
-                img_gray = np.squeeze(img_gray)
-                img_gray = np.tile(np.expand_dims(img_gray, axis=0), (1, 1, 1, 1))
+        # This code runs through test set and evaluates how much of the color-scheme color is present in the images
+        val_generator = self.dataset_val.generator(self.options.batch_size)
 
-                name = os.path.basename(img_gray_path[:-3]) + '_' + str(i) + '.jpg'
-                path = os.path.join(outputs_path, name)
+        warms = []
+        cools = []
+        rgbs = []
+        for input_rgb in val_generator:
+            feed_dic = {self.input_rgb: input_rgb}
+            outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
+            cool = np.mean(np.abs(outputs - np.array([65.04, -25.06, -29.04]))[:, :, :, 1:])
+            warm = np.mean(np.abs(outputs - np.array([55.46, 60.3, 46.52]))[:, :, :, 1:])
+            warms.append(warm)
+            cools.append(cool)
+            rgb = np.mean(postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space,
+                                  colorspace_out=COLORSPACE_RGB).eval() * 255, axis=(0, 1, 2))
+            rgbs.append(rgb)
 
-                color_scheme_input = np.expand_dims(np.expand_dims(np.array(i), axis=-1), axis=-1)
-                feed_dic = {self.input_rgb: img_gray}
 
-                outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
-                outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
-                imsave(outputs[0], path)
+        print('Warm: ' + str(np.mean(warms)))
+        print('Cool: ' + str(np.mean(cools)))
+        print("Avg RGB: " + str(np.mean(rgbs, axis=0)))
 
-    def test2(self):
-
-        # This code follows the same logic from 'validate' above to test on the images from the validation set
-        # For future will need to divide the validation set into two subsets: validation and test
+    def infer_and_save(self, num=None):
         val_generator = self.dataset_val.generator(self.options.batch_size)
         outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
 
@@ -151,10 +150,12 @@ class BaseModel:
         for input_rgb in val_generator:
             feed_dic = {self.input_rgb: input_rgb}
             outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
-            outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
+            outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space,
+                                  colorspace_out=COLORSPACE_RGB).eval() * 255
             for j in range(len(outputs)):
                 imsave(outputs[j], os.path.join(outputs_path, '{}.jpg'.format(k)))
                 k += 1
+
 
     def sample(self, show=True):
         input_rgb = next(self.sample_generator)
@@ -176,22 +177,25 @@ class BaseModel:
 
     def turing_test(self):
         batch_size = self.options.batch_size
-        gen = self.dataset_val.generator(batch_size, True)
+        turing_dataset = self.create_dataset(training=False, turing=True)
+        gen = turing_dataset.generator(batch_size, True)
         count = 0
         score = 0
+        attempts = 0
         size = self.options.turing_test_size
 
-        while count < size:
+        while attempts < size:
             input_rgb = next(gen)
             feed_dic = {self.input_rgb: input_rgb}
             fake_image = self.sess.run(self.sampler, feed_dict=feed_dic)
             fake_image = postprocess(tf.convert_to_tensor(fake_image), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB)
 
-            for i in range(np.min([batch_size, size - count])):
-                res = turing_test(input_rgb[i], fake_image.eval()[i], self.options.turing_test_delay)
+            for i in range(np.min([len(input_rgb), size - attempts])):
+                fooled, attempt = turing_test(input_rgb[i], fake_image.eval()[i], self.options.turing_test_delay)
                 count += 1
-                score += res
-                print('success: %d - fail: %d - rate: %f' % (score, count - score, (count - score) / count))
+                score += fooled
+                attempts += attempt
+                print('fooled: %d - not fooled: %d - fooled rate: %f' % (score, attempts - score, score / attempts))
 
     def build(self):
         if self.is_built:
@@ -309,7 +313,7 @@ class BaseModel:
         raise NotImplementedError
 
     @abstractmethod
-    def create_dataset(self, training):
+    def create_dataset(self, training, turing):
         raise NotImplementedError
 
 
@@ -345,11 +349,12 @@ class Cifar10Model(BaseModel):
 
         return Discriminator('dis', kernels_dis, training=self.options.training)
 
-    def create_dataset(self, training=True):
+    def create_dataset(self, training=True, turing=False):
         return Cifar10Dataset(
             path=self.options.dataset_path,
             training=training,
-            augment=self.options.augment)
+            augment=self.options.augment,
+            turing=turing)
 
 
 class Places365Model(BaseModel):
@@ -390,8 +395,9 @@ class Places365Model(BaseModel):
 
         return Discriminator('dis', kernels_dis, training=self.options.training)
 
-    def create_dataset(self, training=True):
+    def create_dataset(self, training=True, turing=False):
         return Places365Dataset(
             path=self.options.dataset_path,
             training=training,
-            augment=self.options.augment)
+            augment=self.options.augment,
+            turing=turing)

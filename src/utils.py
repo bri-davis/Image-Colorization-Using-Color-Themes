@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import random
+import getch
 import pickle
 import numpy as np
 from PIL import Image
@@ -64,37 +65,48 @@ def imsave(img, path):
 
 
 def turing_test(real_img, fake_img, delay=0):
-    height, width, _ = real_img.shape
-    imgs = np.array([real_img, (fake_img * 255).astype(np.uint8)])
-    real_index = np.random.binomial(1, 0.5)
-    fake_index = (real_index + 1) % 2
+    fake_img = np.array((fake_img * 255).astype(np.uint8))
+    use_real = np.random.binomial(1, 0.5)
+    img = Image.new('RGB', (real_img.shape[0], real_img.shape[1]))
+    if use_real == 1:
+        img.paste(Image.fromarray(real_img), (0, 0))
+    else:
+        img.paste(Image.fromarray(fake_img), (0, 0))
 
-    img = Image.new('RGB', (2 + width * 2, height))
-    img.paste(Image.fromarray(imgs[real_index]), (0, 0))
-    img.paste(Image.fromarray(imgs[fake_index]), (2 + width, 0))
+    # def onclick(event):
+    #     if event.xdata is not None:
+    #         if event.x < width and real_index == 0:
+    #             img.success = 1
+    #
+    #         elif event.x > width and real_index == 1:
+    #             img.success = 1
+    #
+    #     plt.gcf().canvas.stop_event_loop()
 
-    img.success = 0
 
-    def onclick(event):
-        if event.xdata is not None:
-            if event.x < width and real_index == 0:
-                img.success = 1
-
-            elif event.x > width and real_index == 1:
-                img.success = 1
-
-        plt.gcf().canvas.stop_event_loop()
 
     plt.ion()
-    plt.gcf().canvas.mpl_connect('button_press_event', onclick)
-    plt.title('click on the real image')
+    plt.title('enter "r" for real, "t" for fake')
     plt.axis('off')
     plt.imshow(img, interpolation='none')
     plt.show()
     plt.draw()
     plt.gcf().canvas.start_event_loop(delay)
 
-    return img.success
+    char = getch.getch()
+    if use_real == 0:
+        attempt = 1
+        if char == 'r':
+            fooled = 1
+        else:
+            fooled = 0
+    else:
+        attempt = 0
+        fooled = 0
+
+    plt.gcf().canvas.stop_event_loop()
+
+    return fooled, attempt
 
 
 def visualize(train_log_file, test_log_file, window_width, title=''):
