@@ -64,26 +64,21 @@ def imsave(img, path):
     im.save(path)
 
 
-def turing_test(real_img, fake_img, delay=0):
-    fake_img = np.array((fake_img * 255).astype(np.uint8))
-    use_real = np.random.binomial(1, 0.5)
-    img = Image.new('RGB', (real_img.shape[0], real_img.shape[1]))
-    if use_real == 1:
-        img.paste(Image.fromarray(real_img), (0, 0))
+def turing_test(fake_img, real_img=None, delay=0):
+
+    if type(fake_img) == str:
+        img = Image.open(fake_img)
+
+    if real_img != None:
+        fake_img = np.array((fake_img * 255).astype(np.uint8))
+        use_real = np.random.binomial(1, 0.5)
+        img = Image.new('RGB', (real_img.shape[0], real_img.shape[1]))
+        if use_real == 1:
+            img.paste(Image.fromarray(real_img), (0, 0))
+        else:
+            img.paste(Image.fromarray(fake_img), (0, 0))
     else:
-        img.paste(Image.fromarray(fake_img), (0, 0))
-
-    # def onclick(event):
-    #     if event.xdata is not None:
-    #         if event.x < width and real_index == 0:
-    #             img.success = 1
-    #
-    #         elif event.x > width and real_index == 1:
-    #             img.success = 1
-    #
-    #     plt.gcf().canvas.stop_event_loop()
-
-
+        use_real = 0
 
     plt.ion()
     plt.title('enter "r" for real, "t" for fake')

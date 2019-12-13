@@ -52,7 +52,10 @@ class ModelOptions:
         
         parser.add_argument('--test-input', type=str, default='', help='path to the grayscale images directory or a grayscale file')
         parser.add_argument('--test-output', type=str, default='', help='model test output directory')
-        parser.add_argument('--turing-test-size', type=int, default=500, metavar='N', help='number of Turing tests (default: 100)')
+
+        parser.add_argument('--turing-test-size', type=int, default=500, metavar='N', help='number of Turing tests')
+        parser.add_argument('--turing-test-directory', type=str, default='./turing_test', metavar='N', help='directory for images to use for turing test')
+        parser.add_argument('--use-turing-test-directory', type=str2bool, default=True, help='True: use listed directory of images for turing test, False: model generates in real time')
         parser.add_argument('--turing-test-delay', type=int, default=2, metavar='N', help='number of seconds to wait when doing Turing test, 0 for unlimited (default: 0)')
 
         self._parser = parser

@@ -1,7 +1,6 @@
 import os
 import glob
 import numpy as np
-import tensorflow as tf
 from scipy.misc import imread
 from abc import abstractmethod
 from .utils import unpickle
@@ -134,7 +133,7 @@ class Places365Dataset(BaseDataset):
             if os.path.exists(flist):
                 data = np.genfromtxt(flist, dtype=np.str, encoding='utf-8')
             else:
-                data = np.array(glob.glob(self.path + '/val_256/*.jpg'))
+                data = np.array(glob.glob(self.path + '/val_256/*.jpg')) ## change this to test_256 if want to predict test images
                 np.savetxt(flist, data, fmt='%s')
 
         return data
