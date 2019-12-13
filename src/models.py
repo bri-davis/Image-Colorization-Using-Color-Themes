@@ -128,18 +128,17 @@ class BaseModel:
         rgbs = []
         for input_rgb in val_generator:
             feed_dic = {self.input_rgb: input_rgb}
-            outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
-            cool = np.mean(np.abs(outputs - np.array([65.04, -25.06, -29.04]))[:, :, :, 1:])
-            warm = np.mean(np.abs(outputs - np.array([55.46, 60.3, 46.52]))[:, :, :, 1:])
-            warms.append(warm)
-            cools.append(cool)
-            rgb = np.mean(postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space,
-                                  colorspace_out=COLORSPACE_RGB).eval() * 255, axis=(0, 1, 2))
+            outputs = self.sess.run(self.output_rgb, feed_dict=feed_dic)
+            # cool = np.mean(np.abs(outputs - np.array([65.04, -25.06, -29.04]))[:, :, :, 1:])
+            # warm = np.mean(np.abs(outputs - np.array([55.46, 60.3, 46.52]))[:, :, :, 1:])
+            # warms.append(warm)
+            # cools.append(cool)
+            rgb = np.mean(outputs * 255, axis=(0, 1, 2))
             rgbs.append(rgb)
 
 
-        print('Warm: ' + str(np.mean(warms)))
-        print('Cool: ' + str(np.mean(cools)))
+        # print('Warm: ' + str(np.mean(warms)))
+        # print('Cool: ' + str(np.mean(cools)))
         print("Avg RGB: " + str(np.mean(rgbs, axis=0)))
 
     def infer_and_save(self, num=None):
@@ -248,6 +247,9 @@ class BaseModel:
         self.gen_loss = self.gen_loss_gan + self.gen_loss_l1 + self.color_scheme_loss # final objective function
 
         self.sampler = tf.identity(gen_factory.create(self.input_gray, kernel, seed, reuse_variables=True), name='output')
+
+        self.output_rgb = postprocess(self.sampler, colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB)
+
         self.accuracy = pixelwise_accuracy(self.input_color, gen, self.options.color_space, self.options.acc_thresh)
         self.learning_rate = tf.constant(self.options.lr)
 
