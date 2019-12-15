@@ -171,49 +171,26 @@ class BaseModel:
             print('\nsaving sample ' + sample + ' - learning rate: ' + str(rate))
             img.save(os.path.join(self.samples_dir, sample))
 
+
     def turing_test(self):
-        if self.options.use_turing_test_directory:
-            # assumes 4 subdirs in this directory, 'real', 'baseline', 'cool', 'warm'
-            image_list = []
-            for root, subdirs, files in os.walk(self.options.turing_test_directory):
-                for file in files:
-                    if file.endswith('.jpg'):
-                        image_list.append(os.path.join(root, file))
-            random.shuffle(image_list)
-            results = {'real': [0, 0], 'baseline': [0, 0], 'cool': [0, 0], 'warm': [0, 0]}
-            for image in image_list:
-                print(image)
-                fooled, _ = turing_test(image, delay=self.options.turing_test_delay)
-                print(fooled)
-                results[image.split('/')[-2]][0] += fooled
-                results[image.split('/')[-2]][1] += 1
+        # assumes 4 subdirs in this directory, 'real', 'baseline', 'cool', 'warm'
+        image_list = []
+        for root, subdirs, files in os.walk(self.options.turing_test_directory):
+            for file in files:
+                if file.endswith('.jpg') or file.endswith('.png'):
+                    image_list.append(os.path.join(root, file))
+        random.shuffle(image_list)
+        results = {'real': [0, 0], 'baseline': [0, 0], 'cool': [0, 0], 'warm': [0, 0]}
+        for image_file in image_list:
+            image_file = image_file.replace("\\", '/')
+            fooled = turing_test(image_file, delay=self.options.turing_test_delay)
+            image_type = image_file.split('/')[-2]
+            results[image_type][0] += fooled
+            results[image_type][1] += 1
 
-            for entry in results:
-                print(entry + ' thought to be real rate: ', results[entry][0] / results[entry][1])
+        for entry in results:
+            print('Percentage of {} thought to be real: {}'.format(entry, results[entry][0] / results[entry][1] * 100))
 
-
-        # This runs turing test using selected model to generate images in real time
-        else:
-            batch_size = self.options.batch_size
-            turing_dataset = self.create_dataset(training=False, turing=True)
-            gen = turing_dataset.generator(batch_size, True)
-            count = 0
-            score = 0
-            attempts = 0
-            size = self.options.turing_test_size
-
-            while attempts < size:
-                input_rgb = next(gen)
-                feed_dic = {self.input_rgb: input_rgb}
-                fake_image = self.sess.run(self.sampler, feed_dict=feed_dic)
-                fake_image = postprocess(tf.convert_to_tensor(fake_image), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB)
-
-                for i in range(np.min([len(input_rgb), size - attempts])):
-                    fooled, attempt = turing_test(input_rgb[i], fake_image.eval()[i], self.options.turing_test_delay)
-                    count += 1
-                    score += fooled
-                    attempts += attempt
-                    print('fooled: %d - not fooled: %d - fooled rate: %f' % (score, attempts - score, score / attempts))
 
     def build(self):
         if self.is_built:

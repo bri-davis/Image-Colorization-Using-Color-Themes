@@ -1,12 +1,15 @@
 import os
+import pickle
 import sys
 import time
-import random
-import getch
-import pickle
+
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use("Qt5Agg")
+from PyQt5 import QtCore
+
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
 
 
 def stitch_images(grayscale, original, pred):
@@ -64,23 +67,20 @@ def imsave(img, path):
     im.save(path)
 
 
-def turing_test(fake_img, real_img=None, delay=0):
+def turing_test(img_file, delay=0):
 
-    if type(fake_img) == str:
-        img = Image.open(fake_img)
+    img = Image.open(img_file)
+    img.fooled = 0
 
-    if real_img != None:
-        fake_img = np.array((fake_img * 255).astype(np.uint8))
-        use_real = np.random.binomial(1, 0.5)
-        img = Image.new('RGB', (real_img.shape[0], real_img.shape[1]))
-        if use_real == 1:
-            img.paste(Image.fromarray(real_img), (0, 0))
-        else:
-            img.paste(Image.fromarray(fake_img), (0, 0))
-    else:
-        use_real = 0
+    def on_character_entry(event):
+        if event.key == 'r':
+            img.fooled = 1
+        plt.gcf().canvas.stop_event_loop()
 
     plt.ion()
+    plt.gcf().canvas.mpl_connect('key_press_event', on_character_entry)
+    plt.gcf().canvas.setFocusPolicy(QtCore.Qt.ClickFocus)
+    plt.gcf().canvas.setFocus()
     plt.title('enter "r" for real, "t" for fake')
     plt.axis('off')
     plt.imshow(img, interpolation='none')
@@ -88,20 +88,7 @@ def turing_test(fake_img, real_img=None, delay=0):
     plt.draw()
     plt.gcf().canvas.start_event_loop(delay)
 
-    char = getch.getch()
-    if use_real == 0:
-        attempt = 1
-        if char == 'r':
-            fooled = 1
-        else:
-            fooled = 0
-    else:
-        attempt = 0
-        fooled = 0
-
-    plt.gcf().canvas.stop_event_loop()
-
-    return fooled, attempt
+    return img.fooled
 
 
 def visualize(train_log_file, test_log_file, window_width, title=''):
