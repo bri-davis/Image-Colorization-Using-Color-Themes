@@ -11,10 +11,11 @@ PLACES365_DATASET = 'places365'
 
 
 class BaseDataset():
-    def __init__(self, name, path, training=True, augment=True):
+    def __init__(self, name, path, training=True, augment=True, turing=False):
         self.name = name
         self.augment = augment and training
         self.training = training
+        self.turing=turing
         self.path = path
         self._data = []
 
@@ -76,7 +77,8 @@ class BaseDataset():
     def data(self):
         if len(self._data) == 0:
             self._data = self.load()
-            np.random.shuffle(self._data)
+            if self.training or self.turing:
+                np.random.shuffle(self._data)
 
         return self._data
 
@@ -86,8 +88,8 @@ class BaseDataset():
 
 
 class Cifar10Dataset(BaseDataset):
-    def __init__(self, path, training=True, augment=True):
-        super(Cifar10Dataset, self).__init__(CIFAR10_DATASET, path, training, augment)
+    def __init__(self, path, training=True, augment=True, turing=False):
+        super(Cifar10Dataset, self).__init__(CIFAR10_DATASET, path, training, augment, turing)
 
     def load(self):
         data = []
@@ -115,8 +117,8 @@ class Cifar10Dataset(BaseDataset):
 
 
 class Places365Dataset(BaseDataset):
-    def __init__(self, path, training=True, augment=True):
-        super(Places365Dataset, self).__init__(PLACES365_DATASET, path, training, augment)
+    def __init__(self, path, training=True, augment=True, turing=False):
+        super(Places365Dataset, self).__init__(PLACES365_DATASET, path, training, augment, turing)
 
     def load(self):
         if self.training:
@@ -132,7 +134,7 @@ class Places365Dataset(BaseDataset):
             if os.path.exists(flist):
                 data = np.genfromtxt(flist, dtype=np.str, encoding='utf-8')
             else:
-                data = np.array(glob.glob(self.path + '/val_256/*.jpg'))
+                data = np.array(glob.glob(self.path + '/test_256/*.jpg'))
                 np.savetxt(flist, data, fmt='%s')
 
         return data
@@ -143,9 +145,20 @@ class TestDataset(BaseDataset):
         super(TestDataset, self).__init__('TEST', path, training=False, augment=False)
 
     def __getitem__(self, index):
-        path = self.data[index]
-        img = imread(path)
-        return path, img
+        if isinstance(index, slice):
+            start = index.start
+            stop = index.stop
+            paths = []
+            imgs = []
+            for i in range(start, stop):
+                path = self.data[i]
+                paths.append(path)
+                imgs.append(imread(path))
+            return paths, imgs
+        else:
+            path = self.data[index]
+            img = imread(path)
+            return path, img
 
     def load(self):
 
@@ -153,7 +166,6 @@ class TestDataset(BaseDataset):
             data = [self.path]
 
         elif os.path.isdir(self.path):
-            data = list(glob.glob(self.path + '/*.jpg')) + list(glob.glob(self.path + '/*.png'))
-
+            data = list(glob.glob(self.path + '/**/*.jpg')) + list(glob.glob(self.path + '/**/*.png'))
 
         return data

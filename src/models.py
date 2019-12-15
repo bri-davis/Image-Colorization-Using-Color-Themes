@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os
 import time
+import random
 import numpy as np
 import tensorflow as tf
 
@@ -11,7 +12,8 @@ from .ops import pixelwise_accuracy, preprocess, postprocess
 from .ops import COLORSPACE_RGB, COLORSPACE_LAB
 from .dataset import Places365Dataset, Cifar10Dataset, TestDataset
 from .utils import stitch_images, turing_test, imshow, imsave, create_dir, visualize, Progbar
-
+from .dataset import CIFAR10_DATASET, PLACES365_DATASET
+import sys
 
 class BaseModel:
     def __init__(self, sess, options):
@@ -44,8 +46,7 @@ class BaseModel:
             progbar = Progbar(total, width=25, stateful_metrics=['epoch', 'iter', 'step'])
 
             for input_rgb in generator:
-                color_scheme = np.random.randint(2, size=(len(input_rgb), 1))
-                feed_dic = {self.input_rgb: input_rgb, self.color_scheme: color_scheme}
+                feed_dic = {self.input_rgb: input_rgb}
 
                 self.iteration = self.iteration + 1
                 self.sess.run([self.dis_train], feed_dict=feed_dic)
@@ -87,6 +88,8 @@ class BaseModel:
                 # save model at checkpoints
                 if self.options.save and step % self.options.save_interval == 0:
                     self.save()
+                    if self.options.dataset == PLACES365_DATASET:
+                        sys.exit()
 
             if self.options.validate:
                 self.validate()
@@ -99,8 +102,7 @@ class BaseModel:
         progbar = Progbar(total, width=25)
 
         for input_rgb in val_generator:
-            color_scheme = np.random.randint(2, size=(len(input_rgb), 1))
-            feed_dic = {self.input_rgb: input_rgb, self.color_scheme: color_scheme}
+            feed_dic = {self.input_rgb: input_rgb}
 
             self.sess.run([self.dis_loss, self.gen_loss, self.accuracy], feed_dict=feed_dic)
 
@@ -120,26 +122,93 @@ class BaseModel:
         print('\n')
 
     def test(self):
+
+        # We found that this test script does not work due to issues with the batch size
         print('\nTesting...')
         dataset = TestDataset(self.options.test_input or (self.options.checkpoints_path + '/test'))
         outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
 
         for index in range(len(dataset)):
-            for i in range (2):
+            for i in range(2):
                 img_gray_path, img_gray = dataset[index]
-                name = os.path.basename(img_gray_path) + '_' + str(i)
+                img_gray = np.squeeze(img_gray)
+                img_gray = np.tile(np.expand_dims(img_gray, axis=0), (1, 1, 1, 1))
+
+                name = os.path.basename(img_gray_path[:-3]) + '_' + str(i) + '.jpg'
                 path = os.path.join(outputs_path, name)
 
-                feed_dic = {self.input_gray: img_gray[None, :, :, None], self.color_scheme: i}
+                color_scheme_input = np.expand_dims(np.expand_dims(np.array(i), axis=-1), axis=-1)
+                feed_dic = {self.input_rgb: img_gray}
+
                 outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
                 outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
-                print(path)
                 imsave(outputs[0], path)
+
+    def evaluate_color(self):
+
+        # This code runs through test set and evaluates how much of the color-scheme color is present in the images
+        val_generator = self.dataset_val.generator(self.options.batch_size)
+
+        warms = []
+        cools = []
+        rgbs = []
+        for input_rgb in val_generator:
+            feed_dic = {self.input_rgb: input_rgb}
+            outputs = self.sess.run(self.output_rgb, feed_dict=feed_dic)
+            #cool = np.mean(np.abs(outputs - np.array([65.04, -25.06, -29.04]))[:, :, :, 1:])
+            #warm = np.mean(np.abs(outputs - np.array([55.46, 60.3, 46.52]))[:, :, :, 1:])
+            #warms.append(warm)
+            #cools.append(cool)
+            #print('curr image w:{} c:{}'.format(warm, cool))
+            #rgb = np.mean(postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255, axis=(0, 1, 2))
+            rgb = np.mean(outputs * 255, axis=(0, 1, 2))
+            rgbs.append(rgb)
+
+        #print('Warm: ' + str(np.mean(warms)))
+        #print('Cool: ' + str(np.mean(cools)))
+        print("")
+        print("")
+        print("Avg RGB: " + str(np.mean(rgbs, axis=0)))
+
+    def infer_and_save(self, num=500):
+        val_generator = self.dataset_val.generator(self.options.batch_size)
+        outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
+
+        k =0
+        end=False
+        for input_rgb in val_generator:
+            feed_dic = {self.input_rgb: input_rgb}
+            outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
+            outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
+            for j in range(len(outputs)):
+                if k >= 500:
+                    imsave(outputs[j], os.path.join(outputs_path, '{}.jpg'.format(k)))
+                k += 1
+                if k == 750:
+                    end=True
+                    break
+            if end == True:
+                break
+
+    def test2(self):
+
+        # This code follows the same logic from 'validate' above to test on the images from the validation set
+        # For future will need to divide the validation set into two subsets: validation and test
+        val_generator = self.dataset_val.generator(self.options.batch_size)
+        outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
+
+        k = 0
+        for input_rgb in val_generator:
+            feed_dic = {self.input_rgb: input_rgb}
+            outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
+            outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB).eval() * 255
+            for j in range(len(outputs)):
+                imsave(outputs[j], os.path.join(outputs_path, '{}.jpg'.format(k)))
+                k += 1
 
     def sample(self, show=True):
         input_rgb = next(self.sample_generator)
-        color_scheme = np.random.randint(2, size=(len(input_rgb), 1))
-        feed_dic = {self.input_rgb: input_rgb, self.color_scheme: color_scheme}
+        feed_dic = {self.input_rgb: input_rgb}
 
         step, rate = self.sess.run([self.global_step, self.learning_rate])
         fake_image, input_gray = self.sess.run([self.sampler, self.input_gray], feed_dict=feed_dic)
@@ -156,23 +225,23 @@ class BaseModel:
             img.save(os.path.join(self.samples_dir, sample))
 
     def turing_test(self):
-        batch_size = self.options.batch_size
-        gen = self.dataset_val.generator(batch_size, True)
-        count = 0
-        score = 0
-        size = self.options.turing_test_size
+        # assumes 4 subdirs in this directory, 'real', 'baseline', 'cool', 'warm'
+        image_list = []
+        for root, subdirs, files in os.walk(self.options.turing_test_directory):
+            for file in files:
+                if file.endswith('.jpg') or file.endswith('.png'):
+                    image_list.append(os.path.join(root, file))
+        random.shuffle(image_list)
+        results = {'real': [0, 0], 'baseline': [0, 0], 'cool': [0, 0], 'warm': [0, 0]}
+        for image_file in image_list:
+            image_file = image_file.replace("\\", '/')
+            fooled = turing_test(image_file, delay=self.options.turing_test_delay)
+            image_type = image_file.split('/')[-2]
+            results[image_type][0] += fooled
+            results[image_type][1] += 1
 
-        while count < size:
-            input_rgb = next(gen)
-            feed_dic = {self.input_rgb: input_rgb}
-            fake_image = self.sess.run(self.sampler, feed_dict=feed_dic)
-            fake_image = postprocess(tf.convert_to_tensor(fake_image), colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB)
-
-            for i in range(np.min([batch_size, size - count])):
-                res = turing_test(input_rgb[i], fake_image.eval()[i], self.options.turing_test_delay)
-                count += 1
-                score += res
-                print('success: %d - fail: %d - rate: %f' % (score, count - score, (count - score) / count))
+        for entry in results:
+            print('Percentage of {} thought to be real: {}'.format(entry, results[entry][0] / results[entry][1] * 100))
 
     def build(self):
         if self.is_built:
@@ -189,21 +258,21 @@ class BaseModel:
         # model input placeholder: RGB imaege
         self.input_rgb = tf.placeholder(tf.float32, shape=(None, None, None, 3), name='input_rgb')
 
-        self.color_scheme = tf.placeholder(tf.int32, shape=(None, 1), name='color_scheme')
-        self.color_scheme_onehot = tf.one_hot(self.color_scheme, 2)
 
         # model input after preprocessing: LAB image
         self.input_color = preprocess(self.input_rgb, colorspace_in=COLORSPACE_RGB, colorspace_out=self.options.color_space)
 
         # test mode: model input is a graycale placeholder
-        if self.options.mode == 1:
-            self.input_gray = tf.placeholder(tf.float32, shape=(None, None, None, 1), name='input_gray')
+        # if self.options.mode == 1:
+        #     self.input_gray = tf.placeholder(tf.float32, shape=(None, None, None, 1), name='input_gray')
 
         # train/turing-test we extract grayscale image from color image
-        else:
-            self.input_gray = tf.image.rgb_to_grayscale(self.input_rgb)
+        # else:
+        self.input_gray = tf.image.rgb_to_grayscale(self.input_rgb)
 
-        gen = gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed)
+        gen = gen_factory.create(self.input_gray, kernel, seed)
+        # gen = tf.concat([self.input_color[:, :, :, :1], gen[:, :, :, 1:]], axis=-1)
+
         dis_real = dis_factory.create(tf.concat([self.input_gray, self.input_color], 3), kernel, seed)
         dis_fake = dis_factory.create(tf.concat([self.input_gray, gen], 3), kernel, seed, reuse_variables=True)
 
@@ -218,14 +287,14 @@ class BaseModel:
         self.gen_loss_gan = tf.reduce_mean(gen_ce)
         self.gen_loss_l1 = tf.reduce_mean(tf.abs(self.input_color - gen)) * self.options.l1_weight
 
-        color_loss_constants = tf.constant([[65.04, -25.06, -29.04], [55.46, 60.3, 46.52]])
-        one_hot_transposed = tf.transpose(self.color_scheme_onehot, (0, 2, 1))
-        color_y = tf.reduce_sum(color_loss_constants * one_hot_transposed, axis=1)
-        color_y = (tf.expand_dims(tf.expand_dims(color_y, 1), 1))
-        self.color_scheme_loss = tf.reduce_mean(tf.abs(color_y - gen)) * self.options.color_weight
-        self.gen_loss = self.gen_loss_gan + self.gen_loss_l1 + self.color_scheme_loss
+        color_sceheme_color = tf.constant(self.options.scheme_color)
+        self.color_scheme_loss = tf.reduce_mean(tf.abs(color_sceheme_color[1:] - gen[:, :, :, 1:])) * self.options.color_weight # gen = output of the generator (array of h * w * 3)
+        self.gen_loss = self.gen_loss_gan + self.gen_loss_l1 + self.color_scheme_loss # final objective function
 
-        self.sampler = tf.identity(gen_factory.create(self.input_gray, self.color_scheme_onehot, kernel, seed, reuse_variables=True), name='output')
+        self.sampler = tf.identity(gen_factory.create(self.input_gray, kernel, seed, reuse_variables=True), name='output')
+        
+        self.output_rgb = postprocess(self.sampler, colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB)
+
         self.accuracy = pixelwise_accuracy(self.input_color, gen, self.options.color_space, self.options.acc_thresh)
         self.learning_rate = tf.constant(self.options.lr)
 
@@ -293,7 +362,7 @@ class BaseModel:
         raise NotImplementedError
 
     @abstractmethod
-    def create_dataset(self, training):
+    def create_dataset(self, training, turing):
         raise NotImplementedError
 
 
@@ -329,7 +398,7 @@ class Cifar10Model(BaseModel):
 
         return Discriminator('dis', kernels_dis, training=self.options.training)
 
-    def create_dataset(self, training=True):
+    def create_dataset(self, training=True, turing=False):
         return Cifar10Dataset(
             path=self.options.dataset_path,
             training=training,
@@ -374,7 +443,7 @@ class Places365Model(BaseModel):
 
         return Discriminator('dis', kernels_dis, training=self.options.training)
 
-    def create_dataset(self, training=True):
+    def create_dataset(self, training=True, turing=False):
         return Places365Dataset(
             path=self.options.dataset_path,
             training=training,

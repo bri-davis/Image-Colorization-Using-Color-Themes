@@ -57,7 +57,7 @@ class Generator(object):
         self.training = training
         self.var_list = []
 
-    def create(self, inputs, input_color_scheme, kernel_size=None, seed=None, reuse_variables=None):
+    def create(self, inputs, kernel_size=None, seed=None, reuse_variables=None):
         output = inputs
 
         with tf.variable_scope(self.name, reuse=reuse_variables):
@@ -77,7 +77,6 @@ class Generator(object):
                     activation=tf.nn.leaky_relu,
                     seed=seed
                 )
-                print(index)
 
                 # save contracting path layers to be used for skip connections
                 layers.append(output)
@@ -86,9 +85,6 @@ class Generator(object):
                     keep_prob = 1.0 - kernel[2] if self.training else 1.0
                     output = tf.nn.dropout(output, keep_prob=keep_prob, name='dropout_' + name, seed=seed)
 
-            scheme_components = tf.keras.layers.Dense(units=512 * 4, activation='relu', use_bias=True)(input_color_scheme)
-            scheme_components = tf.reshape(scheme_components, (-1, 2, 2, 512))
-            output = output + scheme_components
             for index, kernel in enumerate(self.decoder_kernels):
 
                 name = 'deconv' + str(index)
@@ -122,6 +118,5 @@ class Generator(object):
             )
 
             self.var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, self.name)
-            print(self.var_list)
 
             return output

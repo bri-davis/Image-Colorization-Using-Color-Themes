@@ -1,11 +1,15 @@
 import os
+import pickle
 import sys
 import time
-import random
-import pickle
+
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use("Agg")
+from PyQt5 import QtCore
+
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
 
 
 def stitch_images(grayscale, original, pred):
@@ -63,38 +67,28 @@ def imsave(img, path):
     im.save(path)
 
 
-def turing_test(real_img, fake_img, delay=0):
-    height, width, _ = real_img.shape
-    imgs = np.array([real_img, (fake_img * 255).astype(np.uint8)])
-    real_index = np.random.binomial(1, 0.5)
-    fake_index = (real_index + 1) % 2
+def turing_test(img_file, delay=0):
 
-    img = Image.new('RGB', (2 + width * 2, height))
-    img.paste(Image.fromarray(imgs[real_index]), (0, 0))
-    img.paste(Image.fromarray(imgs[fake_index]), (2 + width, 0))
+    img = Image.open(img_file)
+    img.fooled = 0
 
-    img.success = 0
-
-    def onclick(event):
-        if event.xdata is not None:
-            if event.x < width and real_index == 0:
-                img.success = 1
-
-            elif event.x > width and real_index == 1:
-                img.success = 1
-
+    def on_character_entry(event):
+        if event.key == 'r':
+            img.fooled = 1
         plt.gcf().canvas.stop_event_loop()
 
     plt.ion()
-    plt.gcf().canvas.mpl_connect('button_press_event', onclick)
-    plt.title('click on the real image')
+    plt.gcf().canvas.mpl_connect('key_press_event', on_character_entry)
+    plt.gcf().canvas.setFocusPolicy(QtCore.Qt.ClickFocus)
+    plt.gcf().canvas.setFocus()
+    plt.title('enter "r" for real, "t" for fake')
     plt.axis('off')
     plt.imshow(img, interpolation='none')
     plt.show()
     plt.draw()
     plt.gcf().canvas.start_event_loop(delay)
 
-    return img.success
+    return img.fooled
 
 
 def visualize(train_log_file, test_log_file, window_width, title=''):
@@ -131,7 +125,6 @@ def visualize(train_log_file, test_log_file, window_width, title=''):
 
 class Progbar(object):
     """Displays a progress bar.
-
     Arguments:
         target: Total number of steps expected, None if unknown.
         width: Progress bar width on screen.
@@ -169,7 +162,6 @@ class Progbar(object):
 
     def update(self, current, values=None):
         """Updates the progress bar.
-
         Arguments:
             current: Index of current step.
             values: List of tuples:
