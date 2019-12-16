@@ -121,7 +121,7 @@ class BaseModel:
 
     def average_rgb_values(self): # function added for Image Colorization w/ Color Themes
 
-        # This code runs through test set and evaluates the RGB color values in each image
+        # This code runs through test set and evaluates the average RGB pixel value
         test_generator = self.dataset_test.generator(self.options.batch_size)
 
         rgbs = []
@@ -134,7 +134,7 @@ class BaseModel:
 
     def infer_and_save(self, num=500): # function added for Image Colorization w/ Color Themes
 
-        # This method colorize and save the images from the test set, stopping after saving the number specified
+        # This method colorizes and save the images from the test set, stopping after saving the number specified
         test_generator = self.dataset_test.generator(self.options.batch_size)
         outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
 
@@ -286,7 +286,7 @@ class BaseModel:
 
         lossG_l1 = self.gen_loss_l1.eval(feed_dict=feed_dic)
         lossG_gan = self.gen_loss_gan.eval(feed_dict=feed_dic)
-        lossG_color = self.color_scheme_loss.eval(feed_dict=feed_dic)
+        lossG_color = self.color_scheme_loss.eval(feed_dict=feed_dic) # added for Image Colorization w/ Color Themes
         lossG = lossG_l1 + lossG_gan + lossG_color
 
         acc = self.accuracy.eval(feed_dict=feed_dic)
