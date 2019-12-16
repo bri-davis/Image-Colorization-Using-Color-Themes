@@ -56,16 +56,13 @@ def main(options):
             model.train()
         
         elif options.mode == 1:
-            model.infer_and_save()
+            model.infer_and_save() # added for Image Colorization w/ Color Themes
 
         elif options.mode == 2:
-            model.evaluate_color()
+            model.average_rgb_values() # added for Image Colorization w/ Color Themes
 
         elif options.mode == 3:
             model.validate()
-
-        elif options.mode == 4:
-            model.infer_and_save(500)
 
         else:
             model.turing_test()

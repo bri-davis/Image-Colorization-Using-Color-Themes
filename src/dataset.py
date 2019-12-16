@@ -1,8 +1,9 @@
-import os
 import glob
+from abc import abstractmethod
+
 import numpy as np
 from scipy.misc import imread
-from abc import abstractmethod
+
 from .utils import unpickle
 
 CIFAR10_DATASET = 'cifar10'
@@ -10,11 +11,13 @@ PLACES365_DATASET = 'places365'
 
 
 class BaseDataset():
-    def __init__(self, name, path, training=True, augment=True, turing=False):
+    def __init__(self, name, path, dataset_type='training', augment=True):
         self.name = name
+        training = dataset_type == 'training'  # modified for ImageColorization
+
         self.augment = augment and training
         self.training = training
-        self.turing = turing
+        self.dataset_type = dataset_type
         self.path = path
         self._data = []
 
@@ -76,7 +79,7 @@ class BaseDataset():
     def data(self):
         if len(self._data) == 0:
             self._data = self.load()
-            if self.training or self.turing:
+            if self.training: # modified for ImageColorization
                 np.random.shuffle(self._data)
 
         return self._data
@@ -87,8 +90,8 @@ class BaseDataset():
 
 
 class Cifar10Dataset(BaseDataset):
-    def __init__(self, path, training=True, augment=True, turing=False):
-        super(Cifar10Dataset, self).__init__(CIFAR10_DATASET, path, training, augment, turing)
+    def __init__(self, path, dataset_type='training', augment=True):
+        super(Cifar10Dataset, self).__init__(CIFAR10_DATASET, path, dataset_type, augment)
 
     def load(self):
         data = []
@@ -116,55 +119,17 @@ class Cifar10Dataset(BaseDataset):
 
 
 class Places365Dataset(BaseDataset):
-    def __init__(self, path, training=True, augment=True, turing=False):
-        super(Places365Dataset, self).__init__(PLACES365_DATASET, path, training, augment, turing)
+    def __init__(self, path, dataset_type='training', augment=True):
+        super(Places365Dataset, self).__init__(PLACES365_DATASET, path, dataset_type, augment)
 
-    def load(self):
+    def load(self): # modified for ImageColorization
         if self.training:
-            flist = os.path.join(self.path, 'train.flist')
-            if os.path.exists(flist):
-                data = np.genfromtxt(flist, dtype=np.str, encoding='utf-8')
-            else:
-                data = glob.glob(self.path + '/data_256/**/*.jpg', recursive=True)
-                np.savetxt(flist, data, fmt='%s')
+            data = glob.glob(self.path + '/data_256/**/*.jpg', recursive=True)
 
         else:
-            flist = os.path.join(self.path, 'test.flist')
-            if os.path.exists(flist):
-                data = np.genfromtxt(flist, dtype=np.str, encoding='utf-8')
-            else:
-                data = np.array(glob.glob(self.path + '/val_256/*.jpg')) ## change this to test_256 if want to predict test images
-                np.savetxt(flist, data, fmt='%s')
-
-        return data
-
-
-class TestDataset(BaseDataset):
-    def __init__(self, path):
-        super(TestDataset, self).__init__('TEST', path, training=False, augment=False)
-
-    def __getitem__(self, index):
-        if isinstance(index, slice):
-            start = index.start
-            stop = index.stop
-            paths = []
-            imgs = []
-            for i in range(start, stop):
-                path = self.data[i]
-                paths.append(path)
-                imgs.append(imread(path))
-            return paths, imgs
-        else:
-            path = self.data[index]
-            img = imread(path)
-            return path, img
-
-    def load(self):
-
-        if os.path.isfile(self.path):
-            data = [self.path]
-
-        elif os.path.isdir(self.path):
-            data = list(glob.glob(self.path + '/**/*.jpg')) + list(glob.glob(self.path + '/**/*.png'))
+            if self.dataset_type == 'validation':
+                data = np.array(glob.glob(self.path + '/val_256/*.jpg'))
+            else: ## test dataset
+                data = np.array(glob.glob(self.path + '/test_256/*.jpg'))
 
         return data

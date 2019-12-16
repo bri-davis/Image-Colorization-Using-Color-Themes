@@ -25,14 +25,14 @@ class ModelOptions:
         parser.add_argument('--batch-size', type=int, default=128, metavar='N', help='input batch size for training (default: 16)')
         parser.add_argument('--color-space', type=str, default='lab', help='model color space [lab, rgb] (default: lab)')
         parser.add_argument('--epochs', type=int, default=30, metavar='N', help='number of epochs to train (default: 30)')
-        parser.add_argument('--lr', type=float, default=3e-4, metavar='LR', help='learning rate (default: 3e-4)')
-        parser.add_argument('--lr-decay', type=str2bool, default=False, help='True for learning-rate decay (default: True)')
+        parser.add_argument('--lr', type=float, default=1e-6, metavar='LR', help='learning rate (default: 3e-4)')
+        parser.add_argument('--lr-decay', type=str2bool, default=True, help='True for learning-rate decay (default: True)')
         parser.add_argument('--lr-decay-rate', type=float, default=0.1, help='learning rate exponentially decay rate (default: 0.1)')
         parser.add_argument('--lr-decay-steps', type=float, default=1e4, help='learning rate exponentially decay steps (default: 1e5)')
         parser.add_argument('--beta1', type=float, default=0, help='momentum term of adam optimizer (default: 0)')
         parser.add_argument("--l1-weight", type=float, default=100.0, help="weight on L1 term for generator gradient (default: 100.0)")
-        parser.add_argument("--color-weight", type=float, default=10.0, help="weight on the color loss term for generator gradient")
-        parser.add_argument("--scheme-color", type=list, default=[55.46, 60.3, 46.52], help='color scheme for color loss function')
+        parser.add_argument("--color-weight", type=float, default=50.0, help="weight on the color loss term for generator gradient") # added for Image Colorization w/ Color Themes
+        parser.add_argument("--scheme-color", type=list, default=[55.46, 60.3, 46.52], help='color scheme for color loss function') # added for Image Colorization w/ Color Themes
         parser.add_argument('--augment', type=str2bool, default=True, help='True for augmentation (default: True)')
         parser.add_argument('--label-smoothing', type=str2bool, default=False, help='True for one-sided label smoothing (default: False)')
         parser.add_argument('--acc-thresh', type=float, default=2.0, help="accuracy threshold (default: 2.0)")
@@ -53,8 +53,8 @@ class ModelOptions:
         parser.add_argument('--test-input', type=str, default='', help='path to the grayscale images directory or a grayscale file')
         parser.add_argument('--test-output', type=str, default='', help='model test output directory')
 
-        parser.add_argument('--turing-test-size', type=int, default=500, metavar='N', help='number of Turing tests')
-        parser.add_argument('--turing-test-directory', type=str, default='./turing_images/cifar', metavar='N', help='directory for images to use for turing test')
+        parser.add_argument('--turing-test-size', type=int, default=500, metavar='N', help='number of Turing tests') # added for Image Colorization w/ Color Themes
+        parser.add_argument('--turing-test-directory', type=str, default='./turing_images/places2', metavar='N', help='directory for images to use for turing test') # added for Image Colorization w/ Color Themes
         parser.add_argument('--turing-test-delay', type=int, default=0, metavar='N', help='number of seconds to wait when doing Turing test, 0 for unlimited (default: 0)')
 
         self._parser = parser

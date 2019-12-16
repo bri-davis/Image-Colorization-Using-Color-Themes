@@ -1,16 +1,16 @@
 from __future__ import print_function
 
 import os
-import time
 import random
+from abc import abstractmethod
+
 import numpy as np
 import tensorflow as tf
 
-from abc import abstractmethod
+from .dataset import Places365Dataset, Cifar10Dataset
 from .networks import Generator, Discriminator
+from .ops import COLORSPACE_RGB
 from .ops import pixelwise_accuracy, preprocess, postprocess
-from .ops import COLORSPACE_RGB, COLORSPACE_LAB
-from .dataset import Places365Dataset, Cifar10Dataset, TestDataset
 from .utils import stitch_images, turing_test, imshow, imsave, create_dir, visualize, Progbar
 
 
@@ -23,8 +23,9 @@ class BaseModel:
         self.test_log_file = os.path.join(options.checkpoints_path, 'log_test.dat')
         self.train_log_file = os.path.join(options.checkpoints_path, 'log_train.dat')
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
-        self.dataset_train = self.create_dataset(True)
-        self.dataset_val = self.create_dataset(False)
+        self.dataset_train = self.create_dataset('training')
+        self.dataset_val = self.create_dataset('validation')
+        self.dataset_test = self.create_dataset('test')  # added for Image Colorization w/ Color Themes
         self.sample_generator = self.dataset_val.generator(options.sample_size, True)
         self.iteration = 0
         self.epoch = 0
@@ -64,7 +65,7 @@ class BaseModel:
                     ("G loss", lossG),
                     ("G L1", lossG_l1),
                     ("G gan", lossG_gan),
-                    ("G color loss", lossG_color),
+                    ("G color loss", lossG_color), # added for Image Colorization w/ Color Themes
                     ("accuracy", acc)
                 ])
 
@@ -112,36 +113,33 @@ class BaseModel:
                 ("G loss", lossG),
                 ("G L1", lossG_l1),
                 ("G gan", lossG_gan),
-                ("G color loss", lossG_color),
+                ("G color loss", lossG_color), # added for Image Colorization w/ Color Themes
                 ("accuracy", acc)
             ])
 
         print('\n')
 
-
-    def evaluate_color(self):
+    def average_rgb_values(self): # function added for Image Colorization w/ Color Themes
 
         # This code runs through test set and evaluates the RGB color values in each image
-        val_generator = self.dataset_val.generator(self.options.batch_size)
+        test_generator = self.dataset_test.generator(self.options.batch_size)
 
         rgbs = []
-        for input_rgb in val_generator:
+        for input_rgb in test_generator:
             feed_dic = {self.input_rgb: input_rgb}
             outputs = self.sess.run(self.output_rgb, feed_dict=feed_dic)
             rgb = np.mean(outputs * 255, axis=(0, 1, 2))
             rgbs.append(rgb)
-
-
         print("Avg RGB: " + str(np.mean(rgbs, axis=0)))
 
-    def infer_and_save(self, num=500):
+    def infer_and_save(self, num=500): # function added for Image Colorization w/ Color Themes
 
-        # This method will run and submit
-        val_generator = self.dataset_val.generator(self.options.batch_size)
+        # This method colorize and save the images from the test set, stopping after saving the number specified
+        test_generator = self.dataset_test.generator(self.options.batch_size)
         outputs_path = create_dir(self.options.test_output or (self.options.checkpoints_path + '/output'))
 
         k = 0
-        for input_rgb in val_generator:
+        for input_rgb in test_generator:
             feed_dic = {self.input_rgb: input_rgb}
             outputs = self.sess.run(self.sampler, feed_dict=feed_dic)
             outputs = postprocess(tf.convert_to_tensor(outputs), colorspace_in=self.options.color_space,
@@ -172,8 +170,9 @@ class BaseModel:
             img.save(os.path.join(self.samples_dir, sample))
 
 
-    def turing_test(self):
-        # assumes 4 subdirs in this directory, 'real', 'baseline', 'cool', 'warm'
+    def turing_test(self): # function modified for Image Colorization w/ Color Themes
+        # In this turing test, images appear on screen and the user is asked if they look real or look fake
+        # Must be 4 subdirs in directory listed under self.options.turing_test_directory: 'real', 'baseline', 'cool', and 'warm'
         image_list = []
         for root, subdirs, files in os.walk(self.options.turing_test_directory):
             for file in files:
@@ -211,16 +210,9 @@ class BaseModel:
         # model input after preprocessing: LAB image
         self.input_color = preprocess(self.input_rgb, colorspace_in=COLORSPACE_RGB, colorspace_out=self.options.color_space)
 
-        # test mode: model input is a graycale placeholder
-        # if self.options.mode == 1:
-        #     self.input_gray = tf.placeholder(tf.float32, shape=(None, None, None, 1), name='input_gray')
-
-        # train/turing-test we extract grayscale image from color image
-        # else:
         self.input_gray = tf.image.rgb_to_grayscale(self.input_rgb)
 
         gen = gen_factory.create(self.input_gray, kernel, seed)
-        # gen = tf.concat([self.input_color[:, :, :, :1], gen[:, :, :, 1:]], axis=-1)
 
         dis_real = dis_factory.create(tf.concat([self.input_gray, self.input_color], 3), kernel, seed)
         dis_fake = dis_factory.create(tf.concat([self.input_gray, gen], 3), kernel, seed, reuse_variables=True)
@@ -236,13 +228,13 @@ class BaseModel:
         self.gen_loss_gan = tf.reduce_mean(gen_ce)
         self.gen_loss_l1 = tf.reduce_mean(tf.abs(self.input_color - gen)) * self.options.l1_weight
 
-        color_sceheme_color = tf.constant(self.options.scheme_color)
+        color_sceheme_color = tf.constant(self.options.scheme_color) # added for Image Colorization w/ Color Themes
         self.color_scheme_loss = tf.reduce_mean(tf.abs(color_sceheme_color[1:] - gen[:, :, :, 1:])) * self.options.color_weight # gen = output of the generator (array of h * w * 3)
         self.gen_loss = self.gen_loss_gan + self.gen_loss_l1 + self.color_scheme_loss # final objective function
 
         self.sampler = tf.identity(gen_factory.create(self.input_gray, kernel, seed, reuse_variables=True), name='output')
 
-        self.output_rgb = postprocess(self.sampler, colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB)
+        self.output_rgb = postprocess(self.sampler, colorspace_in=self.options.color_space, colorspace_out=COLORSPACE_RGB) # returns colorized images in rgb color scheme
 
         self.accuracy = pixelwise_accuracy(self.input_color, gen, self.options.color_space, self.options.acc_thresh)
         self.learning_rate = tf.constant(self.options.lr)
@@ -311,7 +303,7 @@ class BaseModel:
         raise NotImplementedError
 
     @abstractmethod
-    def create_dataset(self, training, turing):
+    def create_dataset(self, dataset_type):
         raise NotImplementedError
 
 
@@ -347,12 +339,11 @@ class Cifar10Model(BaseModel):
 
         return Discriminator('dis', kernels_dis, training=self.options.training)
 
-    def create_dataset(self, training=True, turing=False):
+    def create_dataset(self, dataset_type='training'):
         return Cifar10Dataset(
             path=self.options.dataset_path,
-            training=training,
-            augment=self.options.augment,
-            turing=turing)
+            dataset_type=dataset_type,
+            augment=self.options.augment)
 
 
 class Places365Model(BaseModel):
@@ -393,9 +384,8 @@ class Places365Model(BaseModel):
 
         return Discriminator('dis', kernels_dis, training=self.options.training)
 
-    def create_dataset(self, training=True, turing=False):
+    def create_dataset(self, dataset_type='training'):
         return Places365Dataset(
             path=self.options.dataset_path,
-            training=training,
-            augment=self.options.augment,
-            turing=turing)
+            dataset_type=dataset_type,
+            augment=self.options.augment)
